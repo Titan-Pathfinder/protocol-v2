@@ -186,6 +186,7 @@ import { createMinimalEd25519VerifyIx } from './util/ed25519Utils';
 import {
 	createNativeInstructionDiscriminatorBuffer,
 	isVersionedTransaction,
+	MAX_TX_BYTE_SIZE,
 } from './tx/utils';
 import pythSolanaReceiverIdl from './idl/pyth_solana_receiver.json';
 import { asV0Tx, PullFeed, AnchorUtils } from '@switchboard-xyz/on-demand';
@@ -5755,8 +5756,11 @@ export class DriftClient {
 		| { jupiterClient: JupiterClient }
 		| { titanClient: TitanClient; jupiterClient: JupiterClient }
 	)): Promise<TransactionSignature> {
-		let res: {ixs: TransactionInstruction[], lookupTables: AddressLookupTableAccount[]};
-		
+		let res: {
+			ixs: TransactionInstruction[];
+			lookupTables: AddressLookupTableAccount[];
+		};
+
 		if (titanClient) {
 			res = await this.getTitanSwapIx({
 				titanClient,
@@ -5803,7 +5807,7 @@ export class DriftClient {
 
 		return txSig;
 	}
-	
+
 	public async getTitanSwapIx({
 		titanClient,
 		outMarketIndex,
@@ -5830,29 +5834,17 @@ export class DriftClient {
 		quote?: QuoteResponse;
 		reduceOnly?: SwapReduceOnly;
 		userAccountPublicKey?: PublicKey;
-	}): Promise<{ixs: TransactionInstruction[], lookupTables: AddressLookupTableAccount[]}> {
+	}): Promise<{
+		ixs: TransactionInstruction[];
+		lookupTables: AddressLookupTableAccount[];
+	}> {
 		const outMarket = this.getSpotMarketAccount(outMarketIndex);
 		const inMarket = this.getSpotMarketAccount(inMarketIndex);
 
-		const isExactOut = swapMode === 'ExactOut' || quote?.swapMode === 'ExactOut';
+		const isExactOut =
+			swapMode === 'ExactOut' || quote?.swapMode === 'ExactOut';
 		const amountIn = quote ? new BN(quote.inAmount) : amount;
 		const exactOutBufferedAmountIn = amountIn.muln(1001).divn(1000); // Add 10bp buffer
-
-		const {transactionMessage, lookupTables} = await titanClient.getSwap({
-			inputMint: inMarket.mint,
-			outputMint: outMarket.mint,
-			amount,
-			userPublicKey: this.provider.wallet.publicKey,
-			slippageBps,
-			swapMode: swapMode === 'ExactOut' ? TitanSwapMode.ExactOut : TitanSwapMode.ExactIn,
-			onlyDirectRoutes,
-		});
-
-		const titanInstructions = titanClient.getTitanInstructions({
-			transactionMessage,
-			inputMint: inMarket.mint,
-			outputMint: outMarket.mint,
-		});
 
 		const preInstructions = [];
 		if (!outAssociatedTokenAccount) {
@@ -5913,6 +5905,23 @@ export class DriftClient {
 			userAccountPublicKey,
 		});
 
+		const { transactionMessage, lookupTables } = await titanClient.getSwap({
+			inputMint: inMarket.mint,
+			outputMint: outMarket.mint,
+			amount,
+			userPublicKey: this.provider.wallet.publicKey,
+			slippageBps,
+			swapMode: isExactOut ? TitanSwapMode.ExactOut : TitanSwapMode.ExactIn,
+			onlyDirectRoutes,
+			sizeConstraint: MAX_TX_BYTE_SIZE - 375, // 375 bytes for buffer
+		});
+
+		const titanInstructions = titanClient.getTitanInstructions({
+			transactionMessage,
+			inputMint: inMarket.mint,
+			outputMint: outMarket.mint,
+		});
+
 		const ixs = [
 			...preInstructions,
 			beginSwapIx,
@@ -5922,7 +5931,6 @@ export class DriftClient {
 
 		return { ixs, lookupTables };
 	}
-
 
 	public async getJupiterSwapIxV6({
 		jupiterClient,
