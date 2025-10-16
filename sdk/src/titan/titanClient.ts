@@ -77,11 +77,9 @@ export interface QuoteResponse {
 	inAmount: string;
 	outputMint: string;
 	outAmount: string;
-	otherAmountThreshold: string;
 	swapMode: SwapMode;
 	slippageBps: number;
 	platformFee?: { amount?: string; feeBps?: number };
-	priceImpactPct: string;
 	routePlan: Array<{ swapInfo: any; percent: number }>;
 	contextSlot?: number;
 	timeTaken?: number;
@@ -130,6 +128,8 @@ export class TitanClient {
 		swapMode,
 		onlyDirectRoutes,
 		excludeDexes,
+		sizeConstraint,
+		accountsLimitWritable,
 	}: {
 		inputMint: PublicKey;
 		outputMint: PublicKey;
@@ -140,6 +140,8 @@ export class TitanClient {
 		swapMode?: string;
 		onlyDirectRoutes?: boolean;
 		excludeDexes?: string[];
+		sizeConstraint?: number;
+		accountsLimitWritable?: number;
 	}): Promise<QuoteResponse> {
 		const params = new URLSearchParams({
 			inputMint: inputMint.toString(),
@@ -156,6 +158,10 @@ export class TitanClient {
 			}),
 			...(maxAccounts && { accountsLimitTotal: maxAccounts.toString() }),
 			...(excludeDexes && { excludeDexes: excludeDexes.join(',') }),
+			...(sizeConstraint && { sizeConstraint: sizeConstraint.toString() }),
+			...(accountsLimitWritable && {
+				accountsLimitWritable: accountsLimitWritable.toString(),
+			}),
 		});
 
 		const response = await fetch(
@@ -193,9 +199,6 @@ export class TitanClient {
 			inAmount: amount.toString(),
 			outputMint: outputMint.toString(),
 			outAmount: route.outAmount.toString(),
-			otherAmountThreshold: Math.floor(
-				route.outAmount * (1 - slippageBps / 10000)
-			).toString(),
 			swapMode: data.swapMode,
 			slippageBps: route.slippageBps,
 			platformFee: route.platformFee
@@ -204,7 +207,6 @@ export class TitanClient {
 						feeBps: route.platformFee.fee_bps,
 				  }
 				: undefined,
-			priceImpactPct: '0',
 			routePlan:
 				route.steps?.map((step: any) => ({
 					swapInfo: {
@@ -244,6 +246,7 @@ export class TitanClient {
 		onlyDirectRoutes,
 		excludeDexes,
 		sizeConstraint,
+		accountsLimitWritable,
 	}: {
 		inputMint: PublicKey;
 		outputMint: PublicKey;
@@ -255,6 +258,7 @@ export class TitanClient {
 		onlyDirectRoutes?: boolean;
 		excludeDexes?: string[];
 		sizeConstraint?: number;
+		accountsLimitWritable?: number;
 	}): Promise<{
 		transactionMessage: TransactionMessage;
 		lookupTables: AddressLookupTableAccount[];
@@ -272,6 +276,9 @@ export class TitanClient {
 				onlyDirectRoutes: onlyDirectRoutes.toString(),
 			}),
 			...(sizeConstraint && { sizeConstraint: sizeConstraint.toString() }),
+			...(accountsLimitWritable && {
+				accountsLimitWritable: accountsLimitWritable.toString(),
+			}),
 		});
 
 		const response = await fetch(

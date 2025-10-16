@@ -5942,6 +5942,7 @@ export class DriftClient {
 			swapMode: isExactOut ? TitanSwapMode.ExactOut : TitanSwapMode.ExactIn,
 			onlyDirectRoutes,
 			sizeConstraint: MAX_TX_BYTE_SIZE - 375, // 375 bytes for buffer
+			accountsLimitWritable: 58, // buffer for drift writable accounts
 		});
 
 		const titanInstructions = titanClient.getTitanInstructions({
