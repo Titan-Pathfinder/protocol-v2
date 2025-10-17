@@ -187,6 +187,7 @@ import {
 	createNativeInstructionDiscriminatorBuffer,
 	isVersionedTransaction,
 	MAX_TX_BYTE_SIZE,
+	MAX_TX_NUM_ACCOUNTS,
 } from './tx/utils';
 import pythSolanaReceiverIdl from './idl/pyth_solana_receiver.json';
 import { asV0Tx, PullFeed, AnchorUtils } from '@switchboard-xyz/on-demand';
@@ -206,6 +207,7 @@ import {
 	isBuilderOrderCompleted,
 } from './math/builder';
 import { TitanClient, SwapMode as TitanSwapMode } from './titan/titanClient';
+import { MainnetSpotMarkets } from './constants/spotMarkets';
 
 type RemainingAccountParams = {
 	userAccounts: UserAccount[];
@@ -5846,7 +5848,6 @@ export class DriftClient {
 		slippageBps,
 		swapMode,
 		onlyDirectRoutes,
-		quote,
 		reduceOnly,
 		userAccountPublicKey,
 	}: {
@@ -5859,7 +5860,6 @@ export class DriftClient {
 		slippageBps?: number;
 		swapMode?: string;
 		onlyDirectRoutes?: boolean;
-		quote?: QuoteResponse;
 		reduceOnly?: SwapReduceOnly;
 		userAccountPublicKey?: PublicKey;
 	}): Promise<{
@@ -5869,10 +5869,8 @@ export class DriftClient {
 		const outMarket = this.getSpotMarketAccount(outMarketIndex);
 		const inMarket = this.getSpotMarketAccount(inMarketIndex);
 
-		const isExactOut =
-			swapMode === 'ExactOut' || quote?.swapMode === 'ExactOut';
-		const amountIn = quote ? new BN(quote.inAmount) : amount;
-		const exactOutBufferedAmountIn = amountIn.muln(1001).divn(1000); // Add 10bp buffer
+		const isExactOut = swapMode === 'ExactOut';
+		const exactOutBufferedAmountIn = amount.muln(1001).divn(1000); // Add 10bp buffer
 
 		const preInstructions = [];
 		if (!outAssociatedTokenAccount) {
@@ -5926,7 +5924,7 @@ export class DriftClient {
 		const { beginSwapIx, endSwapIx } = await this.getSwapIx({
 			outMarketIndex,
 			inMarketIndex,
-			amountIn: isExactOut ? exactOutBufferedAmountIn : amountIn,
+			amountIn: isExactOut ? exactOutBufferedAmountIn : amount,
 			inTokenAccount: inAssociatedTokenAccount,
 			outTokenAccount: outAssociatedTokenAccount,
 			reduceOnly,
@@ -5941,7 +5939,8 @@ export class DriftClient {
 			slippageBps,
 			swapMode: isExactOut ? TitanSwapMode.ExactOut : TitanSwapMode.ExactIn,
 			onlyDirectRoutes,
-			sizeConstraint: MAX_TX_BYTE_SIZE - 375, // 375 bytes for buffer
+			sizeConstraint: MAX_TX_BYTE_SIZE - 375, // buffer for drift instructions
+			maxAccounts: MAX_TX_NUM_ACCOUNTS - MainnetSpotMarkets.length, // buffer for drift accounts
 			accountsLimitWritable: 58, // buffer for drift writable accounts
 		});
 

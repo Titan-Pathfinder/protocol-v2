@@ -85,13 +85,6 @@ export interface QuoteResponse {
 	timeTaken?: number;
 	error?: string;
 	errorCode?: string;
-	// Store original params for getSwap
-	_originalParams?: {
-		maxAccounts?: number;
-		excludeDexes?: string[];
-		onlyDirectRoutes?: boolean;
-		userPublicKey?: string;
-	};
 }
 
 const TITAN_API_URL = 'https://api.titan.exchange';
@@ -223,12 +216,6 @@ export class TitanClient {
 				})) || [],
 			contextSlot: route.contextSlot,
 			timeTaken: route.timeTaken,
-			// Store original params for getSwap
-			_originalParams: {
-				maxAccounts,
-				excludeDexes,
-				onlyDirectRoutes,
-			},
 		};
 	}
 
